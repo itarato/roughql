@@ -1,53 +1,25 @@
-use roughql_lib::{execute, parse, GraphObject, GraphPrimitiveType, GraphType};
+use roughql_lib::{execute, parse};
+use roughql_macro::GraphQLSource;
+use std::rc::Rc;
 
-struct Bar {}
-
-impl Bar {
-    fn value(&self) -> i64 {
-        5678
-    }
+#[derive(Default, GraphQLSource)]
+struct Bar {
+    #[graphql_field(kind = "int")]
+    value: i64,
 }
 
-impl GraphObject for Bar {
-    fn node_for(&self, name: String) -> GraphType {
-        match name.as_str() {
-            "value" => GraphType::Primitive(GraphPrimitiveType::Int(self.value())),
-            _ => panic!("Cannot resolve Bar item: {}", name),
-        }
-    }
+#[derive(Default, GraphQLSource)]
+struct Foo {
+    #[graphql_field(kind = "int")]
+    value: i64,
+    #[graphql_field(kind = "obj")]
+    bar: Rc<Bar>,
 }
 
-struct Foo {}
-
-impl Foo {
-    fn value(&self) -> i64 {
-        1234
-    }
-
-    fn bar(&self) -> Bar {
-        Bar {}
-    }
-}
-
-impl GraphObject for Foo {
-    fn node_for(&self, name: String) -> GraphType {
-        match name.as_str() {
-            "value" => GraphType::Primitive(GraphPrimitiveType::Int(self.value())),
-            "bar" => GraphType::Object(Box::new(self.bar())),
-            _ => panic!("Cannot resolve Foo item: {}", name),
-        }
-    }
-}
-
-struct Root;
-
-impl GraphObject for Root {
-    fn node_for(&self, name: String) -> GraphType {
-        match name.as_str() {
-            "foo" => GraphType::Object(Box::new(Foo {})),
-            _ => panic!("Cannot resolve Root item: {}", name),
-        }
-    }
+#[derive(Default, GraphQLSource)]
+struct Root {
+    #[graphql_field(kind = "obj")]
+    foo: Rc<Foo>,
 }
 
 fn main() {
@@ -63,12 +35,6 @@ fn main() {
     let query = parse(input).unwrap();
     dbg!(&query);
 
-    let out = execute(query, Box::new(Root {}));
+    let out = execute(query, Rc::new(Root::default()));
     println!("{}", out);
 }
-
-/***
- * How to:
- * - generate Root?
- * - get rid of field definition with procedural macros (maybe)?
- */

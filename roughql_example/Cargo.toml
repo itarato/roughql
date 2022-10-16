@@ -7,3 +7,4 @@ edition = "2021"
 
 [dependencies]
 roughql_lib = { path = "../roughql_lib" }
+roughql_macro = { path = "../roughql_macro" }

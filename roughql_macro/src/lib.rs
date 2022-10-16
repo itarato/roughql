@@ -63,19 +63,21 @@ pub fn derive_graphql_source_attr(tokens: TokenStream) -> TokenStream {
                         #field_ident_string => roughql_lib::GraphType::Primitive(roughql_lib::GraphPrimitiveType::Int(self.#field_ident))
                     },
                     GraphQlFieldAttrType::Object => quote! {
-                        #field_ident_string => roughql_lib::GraphType::Object(std::boxed::Box::new(self.#field_ident)),
+                        #field_ident_string => roughql_lib::GraphType::Compound(self.#field_ident.clone())
                     },
                 };
                 graphql_field_defs.push(graphql_field_def);
             }
         }
 
+        let panic_msg = format!("Cannot resolve {} item: {{}}", struct_ident.to_string());
+
         let impl_block = quote! {
             impl roughql_lib::GraphObject for #struct_ident {
-                fn node_for(&self, name: String) -> roughql_lib::GraphType {
+                fn node_for(&self, name: std::string::String) -> roughql_lib::GraphType {
                     match name.as_str() {
                         #(#graphql_field_defs,)*
-                        _ => panic!("Cannot resolve Foo item: {}", name),
+                        _ => panic!(#panic_msg, name),
                     }
                 }
             }

@@ -15,7 +15,7 @@ impl GraphPrimitiveType {
 
 pub enum GraphType {
     Primitive(GraphPrimitiveType),
-    Object(Box<dyn GraphObject>),
+    Compound(Rc<dyn GraphObject>),
 }
 
 pub trait GraphObject {
@@ -31,7 +31,7 @@ pub enum QueryField {
 #[derive(Debug)]
 pub struct Query(pub Vec<QueryField>);
 
-fn build_query_result(query_field: QueryField, source: Rc<Box<dyn GraphObject>>) -> String {
+fn build_query_result(query_field: QueryField, source: Rc<dyn GraphObject>) -> String {
     let mut out: String = String::new();
 
     match query_field {
@@ -40,7 +40,7 @@ fn build_query_result(query_field: QueryField, source: Rc<Box<dyn GraphObject>>)
                 out.push_str(&format!("\"{}\": ", name));
                 out.push_str(&val.to_string());
             }
-            GraphType::Object(_) => panic!("Expected primitive, got object for {}", name),
+            GraphType::Compound(_) => panic!("Expected primitive, got object for {}", name),
         },
 
         QueryField::Object((name, children)) => {
@@ -50,7 +50,7 @@ fn build_query_result(query_field: QueryField, source: Rc<Box<dyn GraphObject>>)
                 GraphType::Primitive(_) => {
                     panic!("Expected object, got primitive for {}", name)
                 }
-                GraphType::Object(o) => Rc::new(o),
+                GraphType::Compound(o) => o.clone(),
             };
 
             let mut is_first: bool = true;
@@ -72,14 +72,13 @@ fn build_query_result(query_field: QueryField, source: Rc<Box<dyn GraphObject>>)
     out
 }
 
-pub fn execute(query: Query, obj: Box<dyn GraphObject>) -> String {
+pub fn execute(query: Query, root: Rc<dyn GraphObject>) -> String {
     let mut out = String::new();
 
     out.push_str("{\"data\": { ");
-    let source = Rc::new(obj);
 
     for field in query.0 {
-        let field_out = build_query_result(field, source.clone());
+        let field_out = build_query_result(field, root.clone());
         out.push_str(&field_out);
     }
 
@@ -98,7 +97,6 @@ pub fn parse<'a>(query: &str) -> Result<Query, &'a str> {
     match tokens.pop_front() {
         Some("query") => match tokens.pop_front() {
             Some("{") => match parse_list(tokens) {
-                // This is missing checking the last closing `}`.
                 Ok((mut new_tokens, query_field)) => match new_tokens.pop_front() {
                     Some("}") => Ok(Query(query_field)),
                     _ => Err("Invalid ending"),
