@@ -1,6 +1,6 @@
-use roughql_macro::GraphQLSource;
+use roughql_macro::GraphNode;
 
-#[derive(Default, GraphQLSource)]
+#[derive(Default, GraphNode)]
 struct Foo {
     #[graphql_field(kind = "int")]
     val: i64,

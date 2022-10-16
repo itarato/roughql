@@ -4,16 +4,16 @@ use syn::{
     parse_macro_input, Data, DeriveInput, Field, Lit, Meta, MetaList, MetaNameValue, NestedMeta,
 };
 
-enum GraphQlFieldAttrType {
+enum FieldAttrType {
     PrimitiveInt,
     Object,
 }
 
-struct GraphQlFieldAttr {
-    ty: GraphQlFieldAttrType,
+struct FieldAttr {
+    ty: FieldAttrType,
 }
 
-fn find_graphql_field_attr(field: &Field) -> Option<GraphQlFieldAttr> {
+fn find_graphql_field_attr(field: &Field) -> Option<FieldAttr> {
     let attr = field.attrs.iter().find(|&attr| {
         attr.path
             .get_ident()
@@ -30,11 +30,11 @@ fn find_graphql_field_attr(field: &Field) -> Option<GraphQlFieldAttr> {
             }))) = nested.first()
             {
                 return match lit_str.value().as_str() {
-                    "int" => Some(GraphQlFieldAttr {
-                        ty: GraphQlFieldAttrType::PrimitiveInt,
+                    "int" => Some(FieldAttr {
+                        ty: FieldAttrType::PrimitiveInt,
                     }),
-                    "obj" => Some(GraphQlFieldAttr {
-                        ty: GraphQlFieldAttrType::Object,
+                    "obj" => Some(FieldAttr {
+                        ty: FieldAttrType::Object,
                     }),
                     _ => None,
                 };
@@ -45,7 +45,7 @@ fn find_graphql_field_attr(field: &Field) -> Option<GraphQlFieldAttr> {
     None
 }
 
-#[proc_macro_derive(GraphQLSource, attributes(graphql_field))]
+#[proc_macro_derive(GraphNode, attributes(graphql_field))]
 pub fn derive_graphql_source_attr(tokens: TokenStream) -> TokenStream {
     let input = parse_macro_input!(tokens as DeriveInput);
     let struct_ident = input.ident;
@@ -59,11 +59,11 @@ pub fn derive_graphql_source_attr(tokens: TokenStream) -> TokenStream {
                 let field_ident_string = field_ident.clone().unwrap().to_string();
 
                 let graphql_field_def = match field_attr.ty {
-                    GraphQlFieldAttrType::PrimitiveInt => quote! {
-                        #field_ident_string => roughql_lib::GraphType::Primitive(roughql_lib::GraphPrimitiveType::Int(self.#field_ident))
+                    FieldAttrType::PrimitiveInt => quote! {
+                        #field_ident_string => roughql_lib::GraphNodeType::Primitive(roughql_lib::GraphPrimitiveType::Int(self.#field_ident))
                     },
-                    GraphQlFieldAttrType::Object => quote! {
-                        #field_ident_string => roughql_lib::GraphType::Compound(self.#field_ident.clone())
+                    FieldAttrType::Object => quote! {
+                        #field_ident_string => roughql_lib::GraphNodeType::Compound(self.#field_ident.clone())
                     },
                 };
                 graphql_field_defs.push(graphql_field_def);
@@ -73,8 +73,8 @@ pub fn derive_graphql_source_attr(tokens: TokenStream) -> TokenStream {
         let panic_msg = format!("Cannot resolve {} item: {{}}", struct_ident.to_string());
 
         let impl_block = quote! {
-            impl roughql_lib::GraphObject for #struct_ident {
-                fn node_for(&self, name: std::string::String) -> roughql_lib::GraphType {
+            impl roughql_lib::GraphNodeProvider for #struct_ident {
+                fn node_for(&self, name: std::string::String) -> roughql_lib::GraphNodeType {
                     match name.as_str() {
                         #(#graphql_field_defs,)*
                         _ => panic!(#panic_msg, name),

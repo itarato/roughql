@@ -13,44 +13,83 @@ impl GraphPrimitiveType {
     }
 }
 
-pub enum GraphType {
+pub enum GraphNodeType {
     Primitive(GraphPrimitiveType),
-    Compound(Rc<dyn GraphObject>),
+    Compound(Rc<dyn GraphNodeProvider>),
 }
 
-pub trait GraphObject {
-    fn node_for(&self, name: String) -> GraphType;
+pub trait GraphNodeProvider {
+    fn node_for(&self, name: String) -> GraphNodeType;
 }
 
 #[derive(Debug)]
 pub enum QueryField {
     Leaf(String),
-    Object((String, Vec<QueryField>)),
+    Node((String, Vec<QueryField>)),
 }
 
 #[derive(Debug)]
 pub struct Query(pub Vec<QueryField>);
 
-fn build_query_result(query_field: QueryField, source: Rc<dyn GraphObject>) -> String {
+impl Query {
+    pub fn try_new<'a>(query: &str) -> Result<Self, &'a str> {
+        let mut tokens = query
+            .split(' ')
+            .map(|slice| slice.trim())
+            .filter(|&slice| !slice.is_empty())
+            .collect::<VecDeque<&str>>();
+
+        match tokens.pop_front() {
+            Some("query") => match tokens.pop_front() {
+                Some("{") => match parse_list(tokens) {
+                    Ok((mut new_tokens, query_field)) => match new_tokens.pop_front() {
+                        Some("}") => Ok(Query(query_field)),
+                        _ => Err("Invalid ending"),
+                    },
+                    Err(e) => Err(e),
+                },
+                _ => Err("Invalid query start"),
+            },
+            _ => Err("Unexpected query type"),
+        }
+    }
+
+    pub fn execute(self, root: Rc<dyn GraphNodeProvider>) -> String {
+        let mut out = String::new();
+
+        out.push_str("{\"data\": { ");
+
+        for field in self.0 {
+            let field_out = build_query_result(field, root.clone());
+            out.push_str(&field_out);
+        }
+
+        out.push_str(" } }");
+
+        out
+    }
+}
+
+fn build_query_result(query_field: QueryField, source: Rc<dyn GraphNodeProvider>) -> String {
     let mut out: String = String::new();
 
     match query_field {
         QueryField::Leaf(name) => match source.node_for(name.clone()) {
-            GraphType::Primitive(val) => {
+            GraphNodeType::Primitive(val) => {
                 out.push_str(&format!("\"{}\": ", name));
                 out.push_str(&val.to_string());
             }
-            GraphType::Compound(_) => panic!("Expected primitive, got object for {}", name),
+            GraphNodeType::Compound(_) => panic!("Expected primitive, got object for {}", name),
         },
 
-        QueryField::Object((name, children)) => {
+        QueryField::Node((name, children)) => {
             out.push_str(&format!("\"{}\": {{ ", name));
 
             let target = match source.node_for(name.clone()) {
-                GraphType::Primitive(_) => {
+                GraphNodeType::Primitive(_) => {
                     panic!("Expected object, got primitive for {}", name)
                 }
-                GraphType::Compound(o) => o.clone(),
+                GraphNodeType::Compound(o) => o.clone(),
             };
 
             let mut is_first: bool = true;
@@ -70,43 +109,6 @@ fn build_query_result(query_field: QueryField, source: Rc<dyn GraphObject>) -> S
     }
 
     out
-}
-
-pub fn execute(query: Query, root: Rc<dyn GraphObject>) -> String {
-    let mut out = String::new();
-
-    out.push_str("{\"data\": { ");
-
-    for field in query.0 {
-        let field_out = build_query_result(field, root.clone());
-        out.push_str(&field_out);
-    }
-
-    out.push_str(" } }");
-
-    out
-}
-
-pub fn parse<'a>(query: &str) -> Result<Query, &'a str> {
-    let mut tokens = query
-        .split(' ')
-        .map(|slice| slice.trim())
-        .filter(|&slice| !slice.is_empty())
-        .collect::<VecDeque<&str>>();
-
-    match tokens.pop_front() {
-        Some("query") => match tokens.pop_front() {
-            Some("{") => match parse_list(tokens) {
-                Ok((mut new_tokens, query_field)) => match new_tokens.pop_front() {
-                    Some("}") => Ok(Query(query_field)),
-                    _ => Err("Invalid ending"),
-                },
-                Err(e) => Err(e),
-            },
-            _ => Err("Invalid query start"),
-        },
-        _ => Err("Unexpected query type"),
-    }
 }
 
 fn parse_list<'a>(
@@ -143,7 +145,7 @@ fn parse_elem<'a>(mut tokens: VecDeque<&str>) -> Result<(VecDeque<&str>, QueryFi
             .pop_front()
             .and_then(|s| {
                 if s == "}" {
-                    Some((new_tokens, QueryField::Object((name.to_string(), fields))))
+                    Some((new_tokens, QueryField::Node((name.to_string(), fields))))
                 } else {
                     None
                 }
