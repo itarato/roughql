@@ -6,12 +6,14 @@ use std::{
 #[derive(Debug)]
 pub enum GraphPrimitiveType {
     Int(i64),
+    Str(String),
 }
 
 impl GraphPrimitiveType {
     pub fn to_string(&self) -> String {
         match self {
             GraphPrimitiveType::Int(v) => format!("{}", v),
+            GraphPrimitiveType::Str(v) => format!("\"{}\"", v),
         }
     }
 }
@@ -28,6 +30,7 @@ pub trait GraphNodeProvider {
 #[derive(Debug)]
 pub enum SchemaPrimitiveType {
     Int,
+    Str,
 }
 
 #[derive(Debug)]

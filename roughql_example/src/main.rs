@@ -21,6 +21,8 @@ struct Foo {
     value: i64,
     #[graphql_field(kind = "obj")]
     bar: Rc<Bar>,
+    #[graphql_field(kind = "str")]
+    name: String,
 }
 
 impl Foo {
@@ -28,6 +30,7 @@ impl Foo {
         Self {
             value: -43,
             bar: Rc::new(Bar::new()),
+            name: "Steve".to_owned(),
         }
     }
 }
@@ -52,6 +55,7 @@ fn main() {
     let input = "query {
         foo {
             value
+            name
             bar {
                 value
             }

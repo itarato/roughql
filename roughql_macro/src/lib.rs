@@ -7,6 +7,7 @@ use syn::{
 
 enum FieldAttrType {
     PrimitiveInt,
+    PrimitiveStr,
     Object,
 }
 
@@ -33,6 +34,9 @@ fn find_graphql_field_attr(field: &Field) -> Option<FieldAttr> {
                 return match lit_str.value().as_str() {
                     "int" => Some(FieldAttr {
                         ty: FieldAttrType::PrimitiveInt,
+                    }),
+                    "str" => Some(FieldAttr {
+                        ty: FieldAttrType::PrimitiveStr,
                     }),
                     "obj" => Some(FieldAttr {
                         ty: FieldAttrType::Object,
@@ -84,6 +88,9 @@ pub fn derive_graphql_source_attr(tokens: TokenStream) -> TokenStream {
                     FieldAttrType::PrimitiveInt => quote! {
                         #field_ident_string => roughql_lib::GraphNodeType::Primitive(roughql_lib::GraphPrimitiveType::Int(self.#field_ident))
                     },
+                    FieldAttrType::PrimitiveStr => quote! {
+                        #field_ident_string => roughql_lib::GraphNodeType::Primitive(roughql_lib::GraphPrimitiveType::Str(self.#field_ident.clone()))
+                    },
                     FieldAttrType::Object => quote! {
                         #field_ident_string => roughql_lib::GraphNodeType::Compound(self.#field_ident.clone())
                     },
@@ -93,6 +100,9 @@ pub fn derive_graphql_source_attr(tokens: TokenStream) -> TokenStream {
                 let schema_field_def = match field_attr.ty {
                     FieldAttrType::PrimitiveInt => quote! {
                         (#field_ident_string.to_owned(), roughql_lib::Schema::Leaf(roughql_lib::SchemaPrimitiveType::Int))
+                    },
+                    FieldAttrType::PrimitiveStr => quote! {
+                        (#field_ident_string.to_owned(), roughql_lib::Schema::Leaf(roughql_lib::SchemaPrimitiveType::Str))
                     },
                     FieldAttrType::Object => {
                         let inner_type = rc_inner_type(&field.ty);
