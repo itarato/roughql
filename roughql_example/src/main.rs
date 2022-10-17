@@ -1,4 +1,5 @@
 use roughql_lib::Query;
+use roughql_lib::SchemaProvider;
 use roughql_macro::GraphNode;
 use std::rc::Rc;
 
@@ -46,6 +47,8 @@ impl Root {
 }
 
 fn main() {
+    dbg!(Root::schema());
+
     let input = "query {
         foo {
             value

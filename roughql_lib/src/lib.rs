@@ -1,4 +1,7 @@
-use std::{collections::VecDeque, rc::Rc};
+use std::{
+    collections::{HashMap, VecDeque},
+    rc::Rc,
+};
 
 #[derive(Debug)]
 pub enum GraphPrimitiveType {
@@ -20,6 +23,21 @@ pub enum GraphNodeType {
 
 pub trait GraphNodeProvider {
     fn node_for(&self, name: String) -> GraphNodeType;
+}
+
+#[derive(Debug)]
+pub enum SchemaPrimitiveType {
+    Int,
+}
+
+#[derive(Debug)]
+pub enum Schema {
+    Leaf(SchemaPrimitiveType),
+    Node(HashMap<String, Schema>),
+}
+
+pub trait SchemaProvider {
+    fn schema() -> Schema;
 }
 
 #[derive(Debug)]

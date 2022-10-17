@@ -1,7 +1,8 @@
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::{
-    parse_macro_input, Data, DeriveInput, Field, Lit, Meta, MetaList, MetaNameValue, NestedMeta,
+    parse_macro_input, AngleBracketedGenericArguments, Data, DeriveInput, Field, Lit, Meta,
+    MetaList, MetaNameValue, NestedMeta, Path, PathArguments, PathSegment, Type, TypePath,
 };
 
 enum FieldAttrType {
@@ -45,6 +46,26 @@ fn find_graphql_field_attr(field: &Field) -> Option<FieldAttr> {
     None
 }
 
+fn rc_inner_type(ty: &Type) -> &Type {
+    if let Type::Path(TypePath {
+        path: Path { segments, .. },
+        ..
+    }) = ty
+    {
+        if let Some(PathSegment {
+            arguments: PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }),
+            ..
+        }) = segments.first()
+        {
+            if let Some(syn::GenericArgument::Type(inner_ty)) = args.first() {
+                return inner_ty;
+            }
+        }
+    }
+
+    panic!("Failed finding inner type of Rc<?>")
+}
+
 #[proc_macro_derive(GraphNode, attributes(graphql_field))]
 pub fn derive_graphql_source_attr(tokens: TokenStream) -> TokenStream {
     let input = parse_macro_input!(tokens as DeriveInput);
@@ -52,6 +73,7 @@ pub fn derive_graphql_source_attr(tokens: TokenStream) -> TokenStream {
 
     if let Data::Struct(ref data_struct) = input.data {
         let mut graphql_field_defs = vec![];
+        let mut schema_field_defs = vec![];
 
         for field in &data_struct.fields {
             if let Some(field_attr) = find_graphql_field_attr(field) {
@@ -67,6 +89,19 @@ pub fn derive_graphql_source_attr(tokens: TokenStream) -> TokenStream {
                     },
                 };
                 graphql_field_defs.push(graphql_field_def);
+
+                let schema_field_def = match field_attr.ty {
+                    FieldAttrType::PrimitiveInt => quote! {
+                        (#field_ident_string.to_owned(), roughql_lib::Schema::Leaf(roughql_lib::SchemaPrimitiveType::Int))
+                    },
+                    FieldAttrType::Object => {
+                        let inner_type = rc_inner_type(&field.ty);
+                        quote! {
+                           (#field_ident_string.to_owned(), #inner_type::schema())
+                        }
+                    }
+                };
+                schema_field_defs.push(schema_field_def);
             }
         }
 
@@ -79,6 +114,14 @@ pub fn derive_graphql_source_attr(tokens: TokenStream) -> TokenStream {
                         #(#graphql_field_defs,)*
                         _ => panic!(#panic_msg, name),
                     }
+                }
+            }
+
+            impl roughql_lib::SchemaProvider for #struct_ident {
+                fn schema() -> roughql_lib::Schema {
+                    roughql_lib::Schema::Node(std::collections::HashMap::from([
+                        #(#schema_field_defs,)*
+                    ]))
                 }
             }
         };
