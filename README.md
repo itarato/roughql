@@ -1,6 +1,6 @@
 # RoughQL
 
-A Rust procedural macro enhanced absolute minimal GraphQL definition framework. It provides annotations that expands to full fledged operation ready GraphQL schema.
+A Rust procedural macro enhanced absolute minimal GraphQL definition framework with types and references. It provides annotations that expands to full fledged operation ready GraphQL schema.
 
 Example:
 
